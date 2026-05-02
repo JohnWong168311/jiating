@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, viewport-fit=cover">
+    <title>家庭理财记账 · 含转账</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js">
+    </script>
+    <style>
+        :root {
+            --primary: #4A6CF7;
+            --income: #10B981;
+            --expense: #EF4444;
+            --transfer: #8B5CF6;
+            --bg: #f0f4f8;
+            --card: #ffffff;
+            --text: #1e293b;
+            --text2: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            --radius: 14px;
+            --nav-h: 64px;
+            --header-h: 52px;
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 16px);
+            -webkit-tap-highlight-color: transparent;
+            -webkit-font-smoothing: antialiased;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow-x: hidden;
+        }
+        .app-header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--card);
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 8px rgba(0, 0, 0, 0.04);
+            min-height: var(--header-h);
+        }
+        .app-header .logo {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary);
+            letter-spacing: -0.3px;
+        }
+        .header-date {
+            font-size: 13px;
+            color: var(--text2);
+            font-weight: 500;
+        }
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            background: var(--card);
+            display: flex;
+            border-top: 1px solid var(--border);
+            padding-bottom: var(--safe-bottom);
+            box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.04);
+            height: calc(var(--nav-h) + var(--safe-bottom));
+        }
+        .bottom-nav .nav-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            cursor: pointer;
+            color: var(--text2);
+            transition: all 0.2s;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .bottom-nav .nav-item.active {
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .bottom-nav .nav-item .nav-icon {
+            font-size: 22px;
+            line-height: 1;
+        }
+        .page {
+            display: none;
+            padding: 12px 14px;
+            animation: fadeIn 0.25s ease;
+        }
+        .page.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 14px 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+        }
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .dot-income {
+            background: var(--income);
+        }
+        .dot-expense {
+            background: var(--expense);
+        }
+        .dot-transfer {
+            background: var(--transfer);
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .summary-item {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+        .s-label {
+            font-size: 11px;
+            color: var(--text2);
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        .s-amount {
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        .s-income {
+            color: var(--income);
+        }
+        .s-expense {
+            color: var(--expense);
+        }
+        .s-balance {
+            color: var(--primary);
+        }
+        .form-group {
+            margin-bottom: 10px;
+        }
+        .form-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text2);
+            display: block;
+            margin-bottom: 4px;
+        }
+        select,
+        input[type="text"],
+        input[type="number"],
+        input[type="date"] {
+            width: 100%;
+            padding: 11px 13px;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            font-size: 14px;
+            background: #fafbfc;
+            color: var(--text);
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 36px;
+            appearance: none;
+        }
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(74, 108, 247, 0.08);
+            background: #fff;
+        }
+        .direction-toggle {
+            display: flex;
+            gap: 8px;
+        }
+        .direction-toggle button {
+            flex: 1;
+            padding: 11px 4px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #fafbfc;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .direction-toggle button.active-income {
+            background: #ecfdf5;
+            border-color: var(--income);
+            color: var(--income);
+        }
+        .direction-toggle button.active-expense {
+            background: #fef2f2;
+            border-color: var(--expense);
+            color: var(--expense);
+        }
+        .direction-toggle button.active-transfer {
+            background: #f4f0ff;
+            border-color: var(--transfer);
+            color: var(--transfer);
+        }
+        .btn {
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+            width: 100%;
+        }
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 11px;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .btn-outline {
+            background: #fff;
+            border: 1.5px solid var(--border);
+            color: var(--text);
+        }
+        .btn-danger {
+            background: #fef2f2;
+            color: var(--expense);
+            border: 1px solid #fecaca;
+        }
+        .tx-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 8px;
+            border-bottom: 1px solid #f1f5f9;
+            gap: 10px;
+            cursor: pointer;
+            transition: background 0.15s;
+            border-radius: 8px;
+            margin: 0 -8px;
+        }
+        .tx-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+        .tx-icon.income {
+            background: #ecfdf5;
+            color: var(--income);
+        }
+        .tx-icon.expense {
+            background: #fef2f2;
+            color: var(--expense);
+        }
+        .tx-icon.transfer {
+            background: #f4f0ff;
+            color: var(--transfer);
+        }
+        .tx-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .tx-info .tx-cat {
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .tx-info .tx-meta {
+            font-size: 10px;
+            color: var(--text2);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .tx-amount {
+            font-weight: 700;
+            font-size: 15px;
+            flex-shrink: 0;
+        }
+        .tx-amount.income {
+            color: var(--income);
+        }
+        .tx-amount.expense {
+            color: var(--expense);
+        }
+        .tx-amount.transfer {
+            color: var(--transfer);
+        }
+        .chart-wrap {
+            position: relative;
+            width: 100%;
+            max-height: 260px;
+            margin: 8px 0;
+        }
+        .chart-wrap canvas {
+            max-height: 260px;
+        }
+        .tag {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            background: #f1f5f9;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .tag .tag-del {
+            font-size: 14px;
+            opacity: 0.5;
+        }
+        .tag.parent-tag {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+            font-weight: 600;
+        }
+        .add-row {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 200;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .modal-sheet {
+            background: #fff;
+            width: 100%;
+            max-width: 500px;
+            border-radius: 20px 20px 0 0;
+            padding: 16px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        #fileInput {
+            display: none;
+        }
+        .import-export {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-header">
+        <div class="logo">🏠 家庭理财<span>记账</span></div>
+        <div class="header-date" id="headerDate"></div>
+    </div>
+
+    <!-- 首页仪表盘 -->
+    <div class="page active" id="page-dashboard">
+        <div class="card">
+            <div class="card-title">📊 收支对比概览（不含转账）</div>
+            <div class="summary-grid">
+                <div class="summary-item"><div class="s-label">📅 今天</div><div class="s-amount s-income" id="sum-today-income">¥0</div><div class="s-amount s-expense" id="sum-today-expense">¥0</div><div class="s-sub s-balance" id="sum-today-balance">盈余 ¥0</div></div>
+                <div class="summary-item"><div class="s-label">📆 本周</div><div class="s-amount s-income" id="sum-week-income">¥0</div><div class="s-amount s-expense" id="sum-week-expense">¥0</div><div class="s-sub s-balance" id="sum-week-balance">盈余 ¥0</div></div>
+                <div class="summary-item"><div class="s-label">🗓 本月</div><div class="s-amount s-income" id="sum-month-income">¥0</div><div class="s-amount s-expense" id="sum-month-expense">¥0</div><div class="s-sub s-balance" id="sum-month-balance">盈余 ¥0</div></div>
+                <div class="summary-item"><div class="s-label">📈 今年</div><div class="s-amount s-income" id="sum-year-income">¥0</div><div class="s-amount s-expense" id="sum-year-expense">¥0</div><div class="s-sub s-balance" id="sum-year-balance">盈余 ¥0</div></div>
+            </div>
+        </div>
+        <div class="card"><div class="card-title"><span class="dot" style="background:var(--primary)"></span>本月收支对比</div><div class="chart-wrap"><canvas id="chartMonthlyBar"></canvas></div></div>
+        <div class="card"><div class="card-title"><span class="dot" style="background:var(--transfer)"></span>家庭资产分布</div><div class="chart-wrap"><canvas id="chartAssets"></canvas></div></div>
+    </div>
+
+    <!-- 记账页（含转账） -->
+    <div class="page" id="page-transactions">
+        <div class="card">
+            <div class="card-title">✏️ 记一笔</div>
+            <div class="form-group"><label>日期</label><input type="date" id="txDate"></div>
+            <div class="form-group"><label>类型</label>
+                <div class="direction-toggle">
+                    <button type="button" id="btnIncome" class="active-income" onclick="setDirection('income')">💰 收入</button>
+                    <button type="button" id="btnExpense" onclick="setDirection('expense')">💸 支出</button>
+                    <button type="button" id="btnTransfer" onclick="setDirection('transfer')">🔄 转账</button>
+                </div>
+            </div>
+            <div id="normalFields">
+                <div class="form-group"><label>一级项目</label><select id="txCat1"><option value="">请选择</option></select></div>
+                <div class="form-group"><label>二级项目</label><select id="txCat2"><option value="">请选择</option></select></div>
+                <div class="form-group"><label>账户</label><select id="txAccount"><option value="">请选择</option></select></div>
+            </div>
+            <div id="transferFields" style="display:none;">
+                <div class="form-group"><label>转出账户</label><select id="txFromAccount"><option value="">请选择</option></select></div>
+                <div class="form-group"><label>转入账户</label><select id="txToAccount"><option value="">请选择</option></select></div>
+            </div>
+            <div class="form-group"><label>币种</label><select id="txCurrency"><option value="CNY">CNY</option></select></div>
+            <div class="form-group"><label>金额</label><input type="number" id="txAmount" placeholder="0.00" step="0.01" min="0.01"></div>
+            <div class="form-group"><label>备注</label><input type="text" id="txNote" placeholder="备注信息"></div>
+            <input type="hidden" id="txEditId" value="">
+            <button class="btn btn-primary" onclick="saveTransaction()">💾 保存记录</button>
+            <button class="btn btn-outline" style="width:100%;margin-top:6px;display:none;" id="btnCancelEdit" onclick="cancelEdit()">取消编辑</button>
+        </div>
+        <div class="card">
+            <div class="card-title">📋 最近流水 <span id="txCount">0条</span></div>
+            <div id="txList" style="max-height:400px;overflow-y:auto;"></div>
+        </div>
+    </div>
+
+    <!-- 统计页 -->
+    <div class="page" id="page-statistics">
+        <div class="card">
+            <div class="card-title">📅 日期范围统计（不含转账）</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <input type="date" id="statDateFrom" style="flex:1;"><span>至</span><input type="date" id="statDateTo" style="flex:1;">
+                <button class="btn btn-primary btn-sm" onclick="refreshStats()">🔍 查询</button>
+            </div>
+            <div style="display:flex;gap:16px;margin-top:10px;" id="statSummary">
+                <div style="flex:1;text-align:center;padding:8px;background:#ecfdf5;border-radius:10px;"><div style="font-size:10px;">收入</div><div style="font-weight:700;color:var(--income);" id="statIncome">¥0</div></div>
+                <div style="flex:1;text-align:center;padding:8px;background:#fef2f2;border-radius:10px;"><div style="font-size:10px;">支出</div><div style="font-weight:700;color:var(--expense);" id="statExpense">¥0</div></div>
+                <div style="flex:1;text-align:center;padding:8px;background:#eff6ff;border-radius:10px;"><div style="font-size:10px;">盈余</div><div style="font-weight:700;color:var(--primary);" id="statBalance">¥0</div></div>
+            </div>
+        </div>
+        <div class="card"><div class="card-title"><span class="dot dot-income"></span>收入饼图（一级项目）</div><div class="chart-wrap"><canvas id="chartStatIncomePie"></canvas></div></div>
+        <div class="card"><div class="card-title"><span class="dot dot-expense"></span>支出饼图（一级项目）</div><div class="chart-wrap"><canvas id="chartStatExpensePie"></canvas></div></div>
+    </div>
+
+    <!-- 设置页 -->
+    <div class="page" id="page-settings">
+        <div class="card"><div class="card-title">💰 收入项目</div><div id="incomeCatList"></div>
+            <div class="add-row"><input type="text" id="newIncomeCat1" placeholder="一级项目"><button class="btn btn-primary btn-sm" onclick="addIncomeCat1()">+</button></div>
+            <div class="add-row"><select id="selIncomeParent"><option value="">选择一级</option></select><input type="text" id="newIncomeCat2" placeholder="二级项目"><button class="btn btn-outline btn-sm" onclick="addIncomeCat2()">+</button></div>
+        </div>
+        <div class="card"><div class="card-title">💸 支出项目</div><div id="expenseCatList"></div>
+            <div class="add-row"><input type="text" id="newExpenseCat1" placeholder="一级项目"><button class="btn btn-primary btn-sm" onclick="addExpenseCat1()">+</button></div>
+            <div class="add-row"><select id="selExpenseParent"><option value="">选择一级</option></select><input type="text" id="newExpenseCat2" placeholder="二级项目"><button class="btn btn-outline btn-sm" onclick="addExpenseCat2()">+</button></div>
+        </div>
+        <div class="card"><div class="card-title">🏦 账户管理</div><div id="accountList"></div>
+            <div class="add-row"><input type="text" id="newAccountName" placeholder="账户名称"><input type="number" id="newAccountBalance" placeholder="余额" step="0.01"><select id="newAccountCurrency"><option value="CNY">CNY</option></select><button class="btn btn-primary btn-sm" onclick="addAccount()">+</button></div>
+        </div>
+        <div class="card"><div class="card-title">🌐 汇率管理</div><div id="rateList"></div>
+            <div class="add-row"><input type="text" id="newRateCurrency" placeholder="币种"><input type="number" id="newRateValue" placeholder="汇率" step="0.0001"><button class="btn btn-primary btn-sm" onclick="addRate()">+</button></div>
+        </div>
+        <div class="card">
+            <div class="card-title">💾 数据备份</div>
+            <div class="import-export"><button class="btn btn-primary btn-sm" onclick="exportData()">📤 导出</button><button class="btn btn-outline btn-sm" onclick="document.getElementById('fileInput').click()">📥 导入</button><input type="file" id="fileInput" accept=".json" onchange="importData(event)"></div>
+            <button class="btn btn-danger btn-sm" style="width:100%;margin-top:8px;" onclick="resetAllData()">⚠️ 重置</button>
+        </div>
+    </div>
+
+    <!-- 编辑弹窗 -->
+    <div class="modal-overlay" id="editModal" style="display:none;" onclick="closeEditModal(event)">
+        <div class="modal-sheet" onclick="event.stopPropagation()">
+            <h3>✏️ 编辑记录</h3>
+            <div class="form-group"><label>日期</label><input type="date" id="editTxDate"></div>
+            <div class="form-group"><label>类型</label>
+                <div class="direction-toggle">
+                    <button type="button" id="editBtnIncome" class="active-income" onclick="setEditDirection('income')">💰</button>
+                    <button type="button" id="editBtnExpense" onclick="setEditDirection('expense')">💸</button>
+                    <button type="button" id="editBtnTransfer" onclick="setEditDirection('transfer')">🔄</button>
+                </div>
+            </div>
+            <div id="editNormalFields">
+                <div class="form-group"><label>一级项目</label><select id="editTxCat1"><option value="">请选择</option></select></div>
+                <div class="form-group"><label>二级项目</label><select id="editTxCat2"><option value="">请选择</option></select></div>
+                <div class="form-group"><label>账户</label><select id="editTxAccount"><option value="">请选择</option></select></div>
+            </div>
+            <div id="editTransferFields" style="display:none;">
+                <div class="form-group"><label>转出账户</label><select id="editTxFromAccount"><option value="">请选择</option></select></div>
+                <div class="form-group"><label>转入账户</label><select id="editTxToAccount"><option value="">请选择</option></select></div>
+            </div>
+            <div class="form-group"><label>币种</label><select id="editTxCurrency"><option value="CNY">CNY</option></select></div>
+            <div class="form-group"><label>金额</label><input type="number" id="editTxAmount" step="0.01" min="0.01"></div>
+            <div class="form-group"><label>备注</label><input type="text" id="editTxNote"></div>
+            <input type="hidden" id="editTxId">
+            <button class="btn btn-primary" onclick="saveEditTransaction()">💾 保存</button>
+            <button class="btn btn-outline" style="width:100%;" onclick="closeEditModal()">取消</button>
+        </div>
+    </div>
+
+    <div class="bottom-nav">
+        <div class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')"><span class="nav-icon">🏠</span>首页</div>
+        <div class="nav-item" data-page="transactions" onclick="switchPage('transactions')"><span class="nav-icon">✏️</span>记账</div>
+        <div class="nav-item" data-page="statistics" onclick="switchPage('statistics')"><span class="nav-icon">📊</span>统计</div>
+        <div class="nav-item" data-page="settings" onclick="switchPage('settings')"><span class="nav-icon">⚙️</span>设置</div>
+    </div>
+
+    <script>
+        (function() {
+            const DB_NAME = 'FamilyFinanceDB_V3';
+            let db;
+
+            function openDB() {
+                return new Promise((resolve, reject) => {
+                    const req = indexedDB.open(DB_NAME, 1);
+                    req.onupgradeneeded = (e) => {
+                        const dbInst = e.target.result;
+                        if (!dbInst.objectStoreNames.contains('transactions')) {
+                            const txStore = dbInst.createObjectStore('transactions', { keyPath: 'id', autoIncrement: true });
+                            txStore.createIndex('date', 'date', { unique: false });
+                        }
+                        if (!dbInst.objectStoreNames.contains('settings')) {
+                            dbInst.createObjectStore('settings', { keyPath: 'key' });
+                        }
+                    };
+                    req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+                    req.onerror = (e) => reject(e.target.error);
+                });
+            }
+            function dbGet(store, key) { return new Promise(r => { const t = db.transaction(store, 'readonly'); t.objectStore(store).get(key).onsuccess = (e) => r(e.target.result); }); }
+            function dbGetAll(store) { return new Promise(r => { const t = db.transaction(store, 'readonly'); t.objectStore(store).getAll().onsuccess = (e) => r(e.target.result); }); }
+            function dbPut(store, obj) { return new Promise(r => { const t = db.transaction(store, 'readwrite'); t.objectStore(store).put(obj).onsuccess = (e) => r(e.target.result); }); }
+            function dbDelete(store, key) { return new Promise(r => { const t = db.transaction(store, 'readwrite'); t.objectStore(store).delete(key).onsuccess = () => r(); }); }
+            function dbClear(store) { return new Promise(r => { const t = db.transaction(store, 'readwrite'); t.objectStore(store).clear().onsuccess = () => r(); }); }
+
+            const defaultIncome = [
+                { id: 'inc1', name: '工资收入', children: [{ id: 'inc1_1', name: '基本工资' }, { id: 'inc1_2', name: '奖金绩效' }] },
+                { id: 'inc2', name: '投资收益', children: [{ id: 'inc2_1', name: '股票基金' }, { id: 'inc2_2', name: '房产租金' }] }
+            ];
+            const defaultExpense = [
+                { id: 'exp1', name: '餐饮食品', children: [{ id: 'exp1_1', name: '三餐外食' }, { id: 'exp1_2', name: '零食水果' }] },
+                { id: 'exp2', name: '交通出行', children: [{ id: 'exp2_1', name: '公共交通' }, { id: 'exp2_2', name: '加油充电' }] }
+            ];
+            const defaultAccounts = [
+                { id: 'acct1', name: '现金钱包', balance: 2000, currency: 'CNY' },
+                { id: 'acct2', name: '工商银行卡', balance: 50000, currency: 'CNY' },
+                { id: 'acct3', name: '美元账户', balance: 1000, currency: 'USD' }
+            ];
+            const defaultRates = [{ currency: 'CNY', rate: 1 }, { currency: 'USD', rate: 7.25 }];
+
+            async function getSetting(key, def) { const r = await dbGet('settings', key); return r ? r.value : def; }
+            async function setSetting(key, value) { await dbPut('settings', { key, value }); }
+            const getIncomeCat = () => getSetting('incomeCat', defaultIncome);
+            const getExpenseCat = () => getSetting('expenseCat', defaultExpense);
+            const getAccounts = () => getSetting('accounts', defaultAccounts);
+            const getRates = () => getSetting('rates', defaultRates);
+            const saveIncomeCat = (d) => setSetting('incomeCat', d);
+            const saveExpenseCat = (d) => setSetting('expenseCat', d);
+            const saveAccounts = (d) => setSetting('accounts', d);
+            const saveRates = (d) => setSetting('rates', d);
+
+            async function getRateMap() { const rates = await getRates(); const m = { CNY: 1 }; rates.forEach(r => m[r.currency] = r.rate); return m; }
+            async function convertToCNY(amount, currency) { const rm = await getRateMap(); return amount * (rm[currency] || 1); }
+
+            let chartMonthlyBar = null, chartAssets = null, chartStatIncPie = null, chartStatExpPie = null;
+            function destroyChart(c) { if (c) { c.destroy(); return null; } return c; }
+
+            let currentPage = 'dashboard', currentDirection = 'income', editDirection = 'income';
+
+            window.switchPage = (p) => {
+                currentPage = p;
+                document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active'));
+                document.getElementById('page-' + p).classList.add('active');
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                document.querySelector(`[data-page="${p}"]`).classList.add('active');
+                if (p === 'dashboard') refreshDashboard();
+                if (p === 'transactions') { refreshTxForm(); refreshTxList(); }
+                if (p === 'statistics') refreshStats();
+                if (p === 'settings') refreshSettings();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            };
+
+            const getTodayStr = () => new Date().toISOString().split('T')[0];
+            const getWeekRange = () => { const n = new Date(); const d = n.getDay() || 7; const m = new Date(n); m.setDate(n.getDate() - d + 1); const s = new Date(m); s.setDate(m.getDate() + 6); return { from: m.toISOString().split('T')[0], to: s.toISOString().split('T')[0] }; };
+            const getMonthRange = () => { const n = new Date(); return { from: new Date(n.getFullYear(), n.getMonth(), 1).toISOString().split('T')[0], to: new Date(n.getFullYear(), n.getMonth() + 1, 0).toISOString().split('T')[0] }; };
+            const getYearRange = () => { const y = new Date().getFullYear(); return { from: y + '-01-01', to: y + '-12-31' }; };
+            const formatMoney = (v) => { const a = Math.abs(v); if (a >= 10000) return '¥' + (v / 10000).toFixed(2) + '万'; return '¥' + v.toFixed(2); };
+
+            // 流水操作
+            async function getTxInRange(f, t) { const all = await dbGetAll('transactions'); return all.filter(tx => tx.date >= f && tx.date <= t); }
+            async function getTxById(id) { return await dbGet('transactions', id); }
+            async function getAllTx() { return await dbGetAll('transactions'); }
+
+            async function updateAccountBalance(accountId, direction, amount, currency, mode) {
+                if (direction === 'transfer') return; // 转账由专门函数处理
+                const accounts = await getAccounts();
+                const idx = accounts.findIndex(a => a.id === accountId);
+                if (idx < 0) return;
+                const cny = await convertToCNY(amount, currency);
+                let delta = direction === 'income' ? cny : -cny;
+                if (mode === 'reverse') delta = -delta;
+                accounts[idx].balance = (parseFloat(accounts[idx].balance) || 0) + delta;
+                await saveAccounts(accounts);
+            }
+
+            async function processTransfer(fromId, toId, amount, currency, date, note) {
+                if (fromId === toId) { alert('转出和转入账户不能相同'); return; }
+                const accounts = await getAccounts();
+                const fromAcc = accounts.find(a => a.id === fromId);
+                const toAcc = accounts.find(a => a.id === toId);
+                if (!fromAcc || !toAcc) { alert('账户不存在'); return; }
+                if (parseFloat(fromAcc.balance) < amount) { alert('转出账户余额不足'); return; }
+                const rateMap = await getRateMap();
+                const fromRate = rateMap[currency] || 1;
+                const toRate = rateMap[toAcc.currency] || 1;
+                const toAmount = amount * fromRate / toRate;
+                fromAcc.balance = parseFloat(fromAcc.balance) - amount;
+                toAcc.balance = parseFloat(toAcc.balance) + toAmount;
+                await saveAccounts(accounts);
+                const txData = {
+                    date, direction: 'transfer',
+                    fromAccountId: fromId, fromAccountName: fromAcc.name,
+                    toAccountId: toId, toAccountName: toAcc.name,
+                    currency, amount, toCurrency: toAcc.currency, toAmount: parseFloat(toAmount.toFixed(2)),
+                    rateUsed: { fromRate, toRate },
+                    note, createdAt: Date.now()
+                };
+                return await dbPut('transactions', txData);
+            }
+
+            async function reverseTransfer(tx) {
+                const accounts = await getAccounts();
+                const fromAcc = accounts.find(a => a.id === tx.fromAccountId);
+                const toAcc = accounts.find(a => a.id === tx.toAccountId);
+                if (fromAcc && toAcc) {
+                    fromAcc.balance = parseFloat(fromAcc.balance) + tx.amount;
+                    toAcc.balance = parseFloat(toAcc.balance) - tx.toAmount;
+                    await saveAccounts(accounts);
+                }
+            }
+
+            // 表单可见性切换
+            function toggleFields() {
+                const isTransfer = (currentDirection === 'transfer');
+                document.getElementById('normalFields').style.display = isTransfer ? 'none' : 'block';
+                document.getElementById('transferFields').style.display = isTransfer ? 'block' : 'none';
+                if (isTransfer) {
+                    populateAccountSelect('txFromAccount');
+                    populateAccountSelect('txToAccount');
+                } else {
+                    populateAccountSelect('txAccount');
+                }
+            }
+
+            window.setDirection = (dir) => {
+                currentDirection = dir;
+                document.getElementById('btnIncome').className = dir === 'income' ? 'active-income' : '';
+                document.getElementById('btnExpense').className = dir === 'expense' ? 'active-expense' : '';
+                document.getElementById('btnTransfer').className = dir === 'transfer' ? 'active-transfer' : '';
+                toggleFields();
+                if (dir !== 'transfer') {
+                    populateCat1Select('txCat1', dir);
+                    document.getElementById('txCat2').innerHTML = '<option value="">请选择</option>';
+                }
+            };
+            window.setEditDirection = (dir) => {
+                editDirection = dir;
+                document.getElementById('editBtnIncome').className = dir === 'income' ? 'active-income' : '';
+                document.getElementById('editBtnExpense').className = dir === 'expense' ? 'active-expense' : '';
+                document.getElementById('editBtnTransfer').className = dir === 'transfer' ? 'active-transfer' : '';
+                document.getElementById('editNormalFields').style.display = dir === 'transfer' ? 'none' : 'block';
+                document.getElementById('editTransferFields').style.display = dir === 'transfer' ? 'block' : 'none';
+                if (dir !== 'transfer') {
+                    populateCat1Select('editTxCat1', dir);
+                    document.getElementById('editTxCat2').innerHTML = '<option value="">请选择</option>';
+                }
+            };
+
+            async function populateCat1Select(sid, dir) {
+                const sel = document.getElementById(sid);
+                const cats = dir === 'income' ? await getIncomeCat() : await getExpenseCat();
+                sel.innerHTML = '<option value="">请选择</option>' + cats.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            }
+            async function populateCat2Select(sid, pid, dir) {
+                const sel = document.getElementById(sid);
+                const cats = dir === 'income' ? await getIncomeCat() : await getExpenseCat();
+                const p = cats.find(c => c.id === pid);
+                sel.innerHTML = '<option value="">请选择</option>' + (p?.children?.map(c => `<option value="${c.id}">${c.name}</option>`).join('') || '');
+            }
+            async function populateAccountSelect(sid) {
+                const sel = document.getElementById(sid);
+                const accounts = await getAccounts();
+                sel.innerHTML = accounts.map(a => `<option value="${a.id}">${a.name} (${a.currency||'CNY'} 余额:${(parseFloat(a.balance)||0).toFixed(2)})</option>`).join('');
+            }
+            async function populateCurrencySelect(sid) {
+                const sel = document.getElementById(sid);
+                const rates = await getRates();
+                sel.innerHTML = rates.map(r => `<option value="${r.currency}">${r.currency} (汇率:${r.rate})</option>`).join('');
+                if (!rates.find(r => r.currency === 'CNY')) sel.innerHTML += '<option value="CNY">CNY (基准)</option>';
+            }
+
+            document.addEventListener('change', async (e) => {
+                if (e.target.id === 'txCat1') await populateCat2Select('txCat2', e.target.value, currentDirection);
+                if (e.target.id === 'editTxCat1') await populateCat2Select('editTxCat2', e.target.value, editDirection);
+            });
+
+            async function refreshTxForm() {
+                document.getElementById('txDate').value = getTodayStr();
+                document.getElementById('txAmount').value = '';
+                document.getElementById('txNote').value = '';
+                document.getElementById('txEditId').value = '';
+                document.getElementById('btnCancelEdit').style.display = 'none';
+                setDirection('income');
+                await populateCurrencySelect('txCurrency');
+                document.getElementById('txCurrency').value = 'CNY';
+            }
+
+            window.saveTransaction = async () => {
+                const date = document.getElementById('txDate').value;
+                const amount = parseFloat(document.getElementById('txAmount').value);
+                const currency = document.getElementById('txCurrency').value;
+                const note = document.getElementById('txNote').value;
+                const editId = document.getElementById('txEditId').value;
+                if (!date || isNaN(amount) || amount <= 0 || !currency) { alert('请填写完整'); return; }
+
+                if (currentDirection === 'transfer') {
+                    const fromId = document.getElementById('txFromAccount').value;
+                    const toId = document.getElementById('txToAccount').value;
+                    if (!fromId || !toId) { alert('请选择转出和转入账户'); return; }
+                    if (editId) {
+                        // 编辑转账：先撤销旧转账，再执行新转账
+                        const oldTx = await getTxById(parseInt(editId));
+                        if (oldTx && oldTx.direction === 'transfer') await reverseTransfer(oldTx);
+                        await dbDelete('transactions', parseInt(editId));
+                    }
+                    await processTransfer(fromId, toId, amount, currency, date, note);
+                } else {
+                    const cat1 = document.getElementById('txCat1').value;
+                    const cat2 = document.getElementById('txCat2').value;
+                    const accountId = document.getElementById('txAccount').value;
+                    if (!cat1 || !cat2 || !accountId) { alert('请完整填写项目与账户'); return; }
+                    const cats = currentDirection === 'income' ? await getIncomeCat() : await getExpenseCat();
+                    const p = cats.find(c => c.id === cat1);
+                    const ch = p?.children?.find(c => c.id === cat2);
+                    const accounts = await getAccounts();
+                    const acc = accounts.find(a => a.id === accountId);
+                    const txData = {
+                        date, direction: currentDirection,
+                        category1Id: cat1, category1Name: p?.name || '',
+                        category2Id: cat2, category2Name: ch?.name || '',
+                        accountId, accountName: acc?.name || '', currency, amount, note, createdAt: Date.now()
+                    };
+                    if (editId) {
+                        txData.id = parseInt(editId);
+                        await dbPut('transactions', txData);
+                        // 撤销旧余额影响已由 saveEditTransaction 统一处理，此处直接 put 即可（编辑另有入口）
+                    } else {
+                        const id = await dbPut('transactions', txData);
+                        await updateAccountBalance(accountId, currentDirection, amount, currency, 'add');
+                    }
+                }
+                await refreshTxForm();
+                await refreshTxList();
+                document.getElementById('txEditId').value = '';
+                document.getElementById('btnCancelEdit').style.display = 'none';
+            };
+
+            window.cancelEdit = () => { document.getElementById('txEditId').value = ''; document.getElementById('btnCancelEdit').style.display = 'none'; refreshTxForm(); };
+
+            async function refreshTxList() {
+                const all = await getAllTx();
+                all.sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0));
+                document.getElementById('txCount').textContent = all.length + '条';
+                const container = document.getElementById('txList');
+                container.innerHTML = all.slice(0, 50).map(tx => {
+                    if (tx.direction === 'transfer') {
+                        return `<div class="tx-item" onclick="openEditModal(${tx.id})">
+                            <div class="tx-icon transfer">🔄</div>
+                            <div class="tx-info"><div class="tx-cat">转账</div><div class="tx-meta">${tx.date} · ${tx.fromAccountName} → ${tx.toAccountName} · ${tx.currency} ${tx.note||''}</div></div>
+                            <div class="tx-amount transfer">-${tx.amount.toFixed(2)}</div>
+                            <div class="tx-actions" onclick="event.stopPropagation()"><button class="btn btn-outline btn-sm" onclick="openEditModal(${tx.id})">✏️</button><button class="btn btn-danger btn-sm" onclick="deleteTxConfirm(${tx.id})">🗑</button></div>
+                        </div>`;
+                    }
+                    const icon = tx.direction === 'income' ? '💰' : '💸';
+                    const sign = tx.direction === 'income' ? '+' : '-';
+                    return `<div class="tx-item" onclick="openEditModal(${tx.id})">
+                        <div class="tx-icon ${tx.direction}">${icon}</div>
+                        <div class="tx-info"><div class="tx-cat">${tx.category2Name || tx.category1Name}</div><div class="tx-meta">${tx.date} · ${tx.accountName} · ${tx.currency||'CNY'} ${tx.note?'· '+tx.note:''}</div></div>
+                        <div class="tx-amount ${tx.direction}">${sign}${tx.amount.toFixed(2)}</div>
+                        <div class="tx-actions" onclick="event.stopPropagation()"><button class="btn btn-outline btn-sm" onclick="openEditModal(${tx.id})">✏️</button><button class="btn btn-danger btn-sm" onclick="deleteTxConfirm(${tx.id})">🗑</button></div>
+                    </div>`;
+                }).join('') || '<div class="empty-state">📝 暂无记录</div>';
+            }
+
+            window.deleteTxConfirm = async (id) => {
+                if (!confirm('确定删除？')) return;
+                const tx = await getTxById(id);
+                if (!tx) return;
+                if (tx.direction === 'transfer') {
+                    await reverseTransfer(tx);
+                } else {
+                    await updateAccountBalance(tx.accountId, tx.direction, tx.amount, tx.currency, 'reverse');
+                }
+                await dbDelete('transactions', id);
+                await refreshTxList();
+                if (currentPage === 'dashboard') refreshDashboard();
+                if (currentPage === 'statistics') refreshStats();
+            };
+
+            // 编辑弹窗
+            window.openEditModal = async (id) => {
+                const tx = await getTxById(id);
+                if (!tx) return;
+                document.getElementById('editTxId').value = tx.id;
+                document.getElementById('editTxDate').value = tx.date;
+                document.getElementById('editTxAmount').value = tx.amount;
+                document.getElementById('editTxNote').value = tx.note || '';
+                editDirection = tx.direction;
+                setEditDirection(editDirection);
+                if (tx.direction === 'transfer') {
+                    populateAccountSelect('editTxFromAccount');
+                    populateAccountSelect('editTxToAccount');
+                    document.getElementById('editTxFromAccount').value = tx.fromAccountId;
+                    document.getElementById('editTxToAccount').value = tx.toAccountId;
+                } else {
+                    populateCat1Select('editTxCat1', tx.direction);
+                    document.getElementById('editTxCat1').value = tx.category1Id;
+                    await populateCat2Select('editTxCat2', tx.category1Id, tx.direction);
+                    document.getElementById('editTxCat2').value = tx.category2Id;
+                    populateAccountSelect('editTxAccount');
+                    document.getElementById('editTxAccount').value = tx.accountId;
+                }
+                await populateCurrencySelect('editTxCurrency');
+                document.getElementById('editTxCurrency').value = tx.currency || 'CNY';
+                document.getElementById('editModal').style.display = 'flex';
+            };
+            window.closeEditModal = (e) => { if (!e || e.target === document.getElementById('editModal')) document.getElementById('editModal').style.display = 'none'; };
+            window.saveEditTransaction = async () => {
+                const id = parseInt(document.getElementById('editTxId').value);
+                const oldTx = await getTxById(id);
+                if (!oldTx) return;
+                // 先撤销旧记录影响
+                if (oldTx.direction === 'transfer') {
+                    await reverseTransfer(oldTx);
+                } else {
+                    await updateAccountBalance(oldTx.accountId, oldTx.direction, oldTx.amount, oldTx.currency, 'reverse');
+                }
+                await dbDelete('transactions', id);
+                // 临时设置当前方向，调用保存逻辑
+                const prevDirection = currentDirection;
+                currentDirection = editDirection;
+                // 填充表单值并调用保存
+                document.getElementById('txDate').value = document.getElementById('editTxDate').value;
+                document.getElementById('txAmount').value = document.getElementById('editTxAmount').value;
+                document.getElementById('txCurrency').value = document.getElementById('editTxCurrency').value;
+                document.getElementById('txNote').value = document.getElementById('editTxNote').value;
+                if (editDirection === 'transfer') {
+                    document.getElementById('txFromAccount').value = document.getElementById('editTxFromAccount').value;
+                    document.getElementById('txToAccount').value = document.getElementById('editTxToAccount').value;
+                    toggleFields();
+                } else {
+                    document.getElementById('txCat1').value = document.getElementById('editTxCat1').value;
+                    document.getElementById('txCat2').value = document.getElementById('editTxCat2').value;
+                    document.getElementById('txAccount').value = document.getElementById('editTxAccount').value;
+                }
+                await saveTransaction();
+                currentDirection = prevDirection;
+                setDirection(currentDirection);
+                document.getElementById('editModal').style.display = 'none';
+                await refreshTxList();
+                if (currentPage === 'dashboard') refreshDashboard();
+                if (currentPage === 'statistics') refreshStats();
+            };
+
+            // 仪表盘
+            async function refreshDashboard() {
+                const today = getTodayStr();
+                const week = getWeekRange();
+                const month = getMonthRange();
+                const year = getYearRange();
+                const [tT, tW, tM, tY] = await Promise.all([
+                    getTxInRange(today, today), getTxInRange(week.from, week.to),
+                    getTxInRange(month.from, month.to), getTxInRange(year.from, year.to)
+                ]);
+                const calc = async (txs, dir) => { let s = 0; for (const tx of txs) if (tx.direction === dir) s += await convertToCNY(tx.amount, tx.currency || 'CNY'); return s; };
+                const setP = async (key, txs) => {
+                    const inc = await calc(txs, 'income');
+                    const exp = await calc(txs, 'expense');
+                    const bal = inc - exp;
+                    document.getElementById(`sum-${key}-income`).textContent = formatMoney(inc);
+                    document.getElementById(`sum-${key}-expense`).textContent = formatMoney(exp);
+                    const el = document.getElementById(`sum-${key}-balance`);
+                    el.textContent = (bal >= 0 ? '盈余 ' : '亏损 ') + formatMoney(Math.abs(bal));
+                    el.style.color = bal >= 0 ? 'var(--primary)' : 'var(--expense)';
+                };
+                await Promise.all([setP('today', tT), setP('week', tW), setP('month', tM), setP('year', tY)]);
+                renderMonthlyBar(tM.filter(t => t.direction !== 'transfer'));
+                renderAssetsChart();
+                document.getElementById('headerDate').textContent = new Date().toLocaleDateString('zh-CN', { weekday: 'short', month: 'short', day: 'numeric' });
+            }
+            async function renderMonthlyBar(txs) {
+                const canvas = document.getElementById('chartMonthlyBar');
+                chartMonthlyBar = destroyChart(chartMonthlyBar);
+                let inc = 0, exp = 0;
+                for (const tx of txs) {
+                    const cny = await convertToCNY(tx.amount, tx.currency || 'CNY');
+                    if (tx.direction === 'income') inc += cny; else if (tx.direction === 'expense') exp += cny;
+                }
+                chartMonthlyBar = new Chart(canvas, { type: 'bar', data: { labels: ['本月'], datasets: [{ label: '收入', data: [inc], backgroundColor: '#10B981' }, { label: '支出', data: [exp], backgroundColor: '#EF4444' }] }, options: { responsive: true, aspectRatio: 2.5 } });
+            }
+            async function renderAssetsChart() {
+                const canvas = document.getElementById('chartAssets');
+                chartAssets = destroyChart(chartAssets);
+                const accounts = await getAccounts();
+                const rm = await getRateMap();
+                chartAssets = new Chart(canvas, { type: 'pie', data: { labels: accounts.map(a => a.name), datasets: [{ data: accounts.map(a => (parseFloat(a.balance)* (rm[a.currency]||1)).toFixed(2)), backgroundColor: ['#4A6CF7','#10B981','#F59E0B','#EF4444','#8B5CF6'] }] } });
+            }
+
+            // 统计
+            window.refreshStats = async () => {
+                const f = document.getElementById('statDateFrom').value || getMonthRange().from;
+                const t = document.getElementById('statDateTo').value || getMonthRange().to;
+                const txs = (await getTxInRange(f, t)).filter(tx => tx.direction !== 'transfer');
+                let inc = 0, exp = 0;
+                const im = {}, em = {};
+                for (const tx of txs) {
+                    const cny = await convertToCNY(tx.amount, tx.currency);
+                    if (tx.direction === 'income') { inc += cny; const k = tx.category1Name || '未知'; im[k] = (im[k]||0)+cny; }
+                    else { exp += cny; const k = tx.category1Name || '未知'; em[k] = (em[k]||0)+cny; }
+                }
+                document.getElementById('statIncome').textContent = formatMoney(inc);
+                document.getElementById('statExpense').textContent = formatMoney(exp);
+                const bal = inc - exp;
+                document.getElementById('statBalance').textContent = formatMoney(bal);
+                chartStatIncPie = destroyChart(chartStatIncPie);
+                chartStatExpPie = destroyChart(chartStatExpPie);
+                chartStatIncPie = new Chart(document.getElementById('chartStatIncomePie'), { type: 'pie', data: { labels: Object.keys(im), datasets: [{ data: Object.values(im), backgroundColor: ['#10B981','#34D399'] }] } });
+                chartStatExpPie = new Chart(document.getElementById('chartStatExpensePie'), { type: 'pie', data: { labels: Object.keys(em), datasets: [{ data: Object.values(em), backgroundColor: ['#EF4444','#F87171'] }] } });
+            };
+
+            // 设置管理（省略，与上一版类似，仅适配了函数名）
+            async function refreshSettings() {
+                const inc = await getIncomeCat(); document.getElementById('incomeCatList').innerHTML = inc.map(c => `<div><span class="tag parent-tag">${c.name}<span class="tag-del" onclick="delInc1('${c.id}')">×</span></span> ${c.children?.map(ch=>`<span class="tag">${ch.name}<span class="tag-del" onclick="delInc2('${c.id}','${ch.id}')">×</span></span>`).join('')}</div>`).join('');
+                const exp = await getExpenseCat(); document.getElementById('expenseCatList').innerHTML = exp.map(c => `<div><span class="tag parent-tag">${c.name}<span class="tag-del" onclick="delExp1('${c.id}')">×</span></span> ${c.children?.map(ch=>`<span class="tag">${ch.name}<span class="tag-del" onclick="delExp2('${c.id}','${ch.id}')">×</span></span>`).join('')}</div>`).join('');
+                const acc = await getAccounts(); document.getElementById('accountList').innerHTML = acc.map(a => `<span class="tag">${a.name} (${a.currency} ${a.balance})<span class="tag-del" onclick="delAcc('${a.id}')">×</span></span>`).join('');
+                const rates = await getRates(); document.getElementById('rateList').innerHTML = rates.map(r => `<span class="tag">${r.currency} = ¥${r.rate} ${r.currency!=='CNY'?`<span class="tag-del" onclick="delRate('${r.currency}')">×</span>`:''}</span>`).join('');
+            }
+            window.addInc1 = async () => { const n = document.getElementById('newIncomeCat1').value.trim(); if(n){ const c=await getIncomeCat(); c.push({id:'inc'+Date.now(),name:n,children:[]}); await saveIncomeCat(c); refreshSettings(); } };
+            window.addInc2 = async () => { const p=document.getElementById('selIncomeParent').value; const n=document.getElementById('newIncomeCat2').value.trim(); if(p&&n){ const c=await getIncomeCat(); const pr=c.find(x=>x.id===p); if(pr)pr.children.push({id:'inc2_'+Date.now(),name:n}); await saveIncomeCat(c); refreshSettings(); } };
+            window.delInc1 = async (id) => { if(confirm('删除？')){ let c=await getIncomeCat(); c=c.filter(x=>x.id!==id); await saveIncomeCat(c); refreshSettings(); } };
+            window.delInc2 = async (pid,cid) => { if(confirm('删除？')){ const c=await getIncomeCat(); const p=c.find(x=>x.id===pid); if(p)p.children=p.children.filter(x=>x.id!==cid); await saveIncomeCat(c); refreshSettings(); } };
+            window.addExp1 = async () => { const n=document.getElementById('newExpenseCat1').value.trim(); if(n){ const c=await getExpenseCat(); c.push({id:'exp'+Date.now(),name:n,children:[]}); await saveExpenseCat(c); refreshSettings(); } };
+            window.addExp2 = async () => { const p=document.getElementById('selExpenseParent').value; const n=document.getElementById('newExpenseCat2').value.trim(); if(p&&n){ const c=await getExpenseCat(); const pr=c.find(x=>x.id===p); if(pr)pr.children.push({id:'exp2_'+Date.now(),name:n}); await saveExpenseCat(c); refreshSettings(); } };
+            window.delExp1 = async (id) => { if(confirm('删除？')){ let c=await getExpenseCat(); c=c.filter(x=>x.id!==id); await saveExpenseCat(c); refreshSettings(); } };
+            window.delExp2 = async (pid,cid) => { if(confirm('删除？')){ const c=await getExpenseCat(); const p=c.find(x=>x.id===pid); if(p)p.children=p.children.filter(x=>x.id!==cid); await saveExpenseCat(c); refreshSettings(); } };
+            window.addAcc = async () => { const n=document.getElementById('newAccountName').value.trim(); const b=parseFloat(document.getElementById('newAccountBalance').value)||0; const cur=document.getElementById('newAccountCurrency').value; if(n){ const a=await getAccounts(); a.push({id:'acct'+Date.now(),name:n,balance:b,currency:cur}); await saveAccounts(a); refreshSettings(); } };
+            window.delAcc = async (id) => { if(confirm('删除账户？')){ let a=await getAccounts(); a=a.filter(x=>x.id!==id); await saveAccounts(a); refreshSettings(); } };
+            window.addRate = async () => { const cur=document.getElementById('newRateCurrency').value.toUpperCase().trim(); const r=parseFloat(document.getElementById('newRateValue').value); if(cur&&!isNaN(r)&&r>0){ if(cur==='CNY')return; let rates=await getRates(); const idx=rates.findIndex(x=>x.currency===cur); if(idx>=0) rates[idx].rate=r; else rates.push({currency:cur,rate:r}); await saveRates(rates); refreshSettings(); } };
+            window.delRate = async (cur) => { if(cur==='CNY')return; if(confirm('删除汇率？')){ let rates=await getRates(); rates=rates.filter(x=>x.currency!==cur); await saveRates(rates); refreshSettings(); } };
+            window.exportData = async () => { const tx=await dbGetAll('transactions'); const s={}; for(const k of ['incomeCat','expenseCat','accounts','rates']){ const v=await dbGet('settings',k); if(v)s[k]=v.value; } const blob=new Blob([JSON.stringify({transactions:tx,settings:s},null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`记账备份_${getTodayStr()}.json`; a.click(); };
+            window.importData = async (e) => { const file=e.target.files[0]; if(!file)return; if(!confirm('导入将覆盖所有数据，继续？')){ e.target.value=''; return; } const reader=new FileReader(); reader.onload=async(ev)=>{ try{ const d=JSON.parse(ev.target.result); if(!d.transactions||!d.settings)throw new Error('格式错误'); await dbClear('transactions'); await dbClear('settings'); for(const tx of d.transactions) await dbPut('transactions',tx); for(const k in d.settings) await setSetting(k,d.settings[k]); alert('导入成功！'); location.reload(); }catch(err){alert('导入失败：'+err.message);} }; reader.readAsText(file); e.target.value=''; };
+            window.resetAllData = async () => { if(!confirm('重置所有数据？'))return; await dbClear('transactions'); await dbClear('settings'); location.reload(); };
+
+            async function init() {
+                await openDB();
+                if(!await dbGet('settings','incomeCat')) await saveIncomeCat(defaultIncome);
+                if(!await dbGet('settings','expenseCat')) await saveExpenseCat(defaultExpense);
+                if(!await dbGet('settings','accounts')) await saveAccounts(defaultAccounts);
+                if(!await dbGet('settings','rates')) await saveRates(defaultRates);
+                document.getElementById('headerDate').textContent = new Date().toLocaleDateString('zh-CN',{weekday:'short',month:'short',day:'numeric'});
+                await refreshDashboard();
+                await refreshTxForm();
+                await refreshTxList();
+                document.getElementById('statDateFrom').value = getMonthRange().from;
+                document.getElementById('statDateTo').value = getMonthRange().to;
+                await refreshStats();
+                await refreshSettings();
+            }
+            init().catch(e=>alert('初始化失败：'+e.message));
+        })();
+    </script>
+</body>
+</html>
