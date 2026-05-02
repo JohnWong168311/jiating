@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>家庭理财记账 · 修复版</title>
+  <title>家庭理财记账 · 修复下拉</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -79,7 +79,7 @@
 <div class="page active" id="page-dashboard">
   <div class="card">
     <div class="card-title">📊 收支概览（不含转账）</div>
-    <div class="summary-grid" id="summaryGrid">
+    <div class="summary-grid">
       <div class="summary-item"><div class="s-label">📅 今天</div><div class="s-amount income-text" id="sum-today-income">¥0</div><div class="s-amount expense-text" id="sum-today-expense">¥0</div><div class="s-amount" id="sum-today-balance" style="color:var(--primary);">盈余 ¥0</div></div>
       <div class="summary-item"><div class="s-label">📆 本周</div><div class="s-amount income-text" id="sum-week-income">¥0</div><div class="s-amount expense-text" id="sum-week-expense">¥0</div><div class="s-amount" id="sum-week-balance" style="color:var(--primary);">盈余 ¥0</div></div>
       <div class="summary-item"><div class="s-label">🗓 本月</div><div class="s-amount income-text" id="sum-month-income">¥0</div><div class="s-amount expense-text" id="sum-month-expense">¥0</div><div class="s-amount" id="sum-month-balance" style="color:var(--primary);">盈余 ¥0</div></div>
@@ -97,7 +97,7 @@
     <div class="form-group"><label>日期</label><input type="date" id="txDate"></div>
     <div class="form-group"><label>类型</label>
       <div class="direction-toggle">
-        <button id="btnIncome" class="active-income" onclick="setTxType('income')" style="color:var(--income);border-color:var(--income);">💰收入</button>
+        <button id="btnIncome" style="color:var(--income);border-color:var(--income);" onclick="setTxType('income')">💰收入</button>
         <button id="btnExpense" onclick="setTxType('expense')">💸支出</button>
         <button id="btnTransfer" onclick="setTxType('transfer')">🔄转账</button>
       </div>
@@ -183,32 +183,28 @@
 
 <script>
 (function() {
-  // IndexedDB 初始化
-  const DB_NAME = 'FinanceDB_v4';
+  // 数据库
+  const DB_NAME = 'FinanceDB_final';
   let db;
   const openDB = () => new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, 1);
     req.onupgradeneeded = (e) => {
-      const dbInst = e.target.result;
-      if (!dbInst.objectStoreNames.contains('transactions')) {
-        const store = dbInst.createObjectStore('transactions', { keyPath: 'id', autoIncrement: true });
-        store.createIndex('date', 'date', { unique: false });
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('transactions')) {
+        const s = d.createObjectStore('transactions', { keyPath: 'id', autoIncrement: true });
+        s.createIndex('date', 'date', { unique: false });
       }
-      if (!dbInst.objectStoreNames.contains('settings')) {
-        dbInst.createObjectStore('settings', { keyPath: 'key' });
-      }
+      if (!d.objectStoreNames.contains('settings')) d.createObjectStore('settings', { keyPath: 'key' });
     };
     req.onsuccess = (e) => { db = e.target.result; resolve(db); };
     req.onerror = (e) => reject(e.target.error);
   });
+  const dbGet = (store,key) => new Promise(r => { const t=db.transaction(store,'readonly'); t.objectStore(store).get(key).onsuccess = (e) => r(e.target.result); });
+  const dbGetAll = (store) => new Promise(r => { db.transaction(store,'readonly').objectStore(store).getAll().onsuccess = (e) => r(e.target.result); });
+  const dbPut = (store,obj) => new Promise(r => { const t=db.transaction(store,'readwrite'); t.objectStore(store).put(obj).onsuccess = (e) => r(e.target.result); });
+  const dbDelete = (store,key) => new Promise(r => { db.transaction(store,'readwrite').objectStore(store).delete(key).onsuccess = () => r(); });
+  const dbClear = (store) => new Promise(r => { db.transaction(store,'readwrite').objectStore(store).clear().onsuccess = () => r(); });
 
-  const dbGet = (store, key) => new Promise(res => { const t = db.transaction(store,'readonly'); const r = t.objectStore(store).get(key); r.onsuccess = () => res(r.result); });
-  const dbGetAll = (store) => new Promise(res => { const t = db.transaction(store,'readonly'); t.objectStore(store).getAll().onsuccess = (e) => res(e.target.result); });
-  const dbPut = (store, obj) => new Promise(res => { const t = db.transaction(store,'readwrite'); t.objectStore(store).put(obj).onsuccess = (e) => res(e.target.result); });
-  const dbDelete = (store, key) => new Promise(res => { const t = db.transaction(store,'readwrite'); t.objectStore(store).delete(key).onsuccess = () => res(); });
-  const dbClear = (store) => new Promise(res => { const t = db.transaction(store,'readwrite'); t.objectStore(store).clear().onsuccess = () => res(); });
-
-  // 默认配置
   const DEFAULT = {
     incomeCat: [
       { id: 'inc1', name: '工资收入', children: [{ id: 'inc1_1', name: '基本工资' }, { id: 'inc1_2', name: '奖金' }] },
@@ -223,134 +219,144 @@
       { id: 'acct2', name: '工商银行卡', balance: 50000, currency: 'CNY' },
       { id: 'acct3', name: '美元账户', balance: 1000, currency: 'USD' }
     ],
-    rates: [
-      { currency: 'CNY', rate: 1 },
-      { currency: 'USD', rate: 7.25 }
-    ]
+    rates: [{ currency: 'CNY', rate: 1 }, { currency: 'USD', rate: 7.25 }]
   };
 
-  const getSetting = async (key, def) => { const r = await dbGet('settings', key); return r ? r.value : def; };
+  const getSetting = (key, def) => dbGet('settings', key).then(r => r ? r.value : def);
   const setSetting = (key, val) => dbPut('settings', { key, value: val });
 
   const getIncomeCat = () => getSetting('incomeCat', DEFAULT.incomeCat);
   const getExpenseCat = () => getSetting('expenseCat', DEFAULT.expenseCat);
   const getAccounts = () => getSetting('accounts', DEFAULT.accounts);
   const getRates = () => getSetting('rates', DEFAULT.rates);
-
   const saveIncomeCat = (d) => setSetting('incomeCat', d);
   const saveExpenseCat = (d) => setSetting('expenseCat', d);
   const saveAccounts = (d) => setSetting('accounts', d);
   const saveRates = (d) => setSetting('rates', d);
 
-  // 汇率转换
-  const getRateMap = async () => { const rates = await getRates(); const map = { CNY: 1 }; rates.forEach(r => map[r.currency] = r.rate); return map; };
-  const toCNY = async (amount, currency) => { const map = await getRateMap(); return amount * (map[currency] || 1); };
+  const getRateMap = async () => { const rates = await getRates(); const m = { CNY:1 }; rates.forEach(r => m[r.currency]=r.rate); return m; };
+  const toCNY = async (amount, currency) => { const map = await getRateMap(); return amount * (map[currency]||1); };
 
-  // 全局状态
   let currentPage = 'dashboard';
-  let txType = 'income'; // income / expense / transfer
+  let txType = 'income';
   let charts = {};
 
-  // 工具函数
   const todayStr = () => new Date().toISOString().split('T')[0];
   const getWeekRange = () => {
-    const now = new Date();
-    const day = now.getDay() || 7;
-    const monday = new Date(now); monday.setDate(now.getDate() - day + 1);
-    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
-    return { from: monday.toISOString().split('T')[0], to: sunday.toISOString().split('T')[0] };
+    const now = new Date(), day = now.getDay()||7;
+    const mon = new Date(now); mon.setDate(now.getDate()-day+1);
+    const sun = new Date(mon); sun.setDate(mon.getDate()+6);
+    return { from: mon.toISOString().split('T')[0], to: sun.toISOString().split('T')[0] };
   };
   const getMonthRange = () => {
-    const now = new Date();
-    return { from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0],
-             to: new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().split('T')[0] };
+    const n = new Date();
+    return { from: new Date(n.getFullYear(),n.getMonth(),1).toISOString().split('T')[0],
+             to: new Date(n.getFullYear(),n.getMonth()+1,0).toISOString().split('T')[0] };
   };
   const getYearRange = () => { const y = new Date().getFullYear(); return { from: y+'-01-01', to: y+'-12-31' }; };
-  const formatMoney = (v) => { const a = Math.abs(v); if (a >= 10000) return '¥'+(v/10000).toFixed(2)+'万'; return '¥'+v.toFixed(2); };
+  const formatMoney = (v) => { const a = Math.abs(v); if(a>=10000) return '¥'+(v/10000).toFixed(2)+'万'; return '¥'+v.toFixed(2); };
 
-  // 页面切换
   window.switchPage = (page) => {
     currentPage = page;
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-'+page).classList.add('active');
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.querySelector(`.nav-item[data-page="${page}"]`).classList.add('active');
-    if (page === 'dashboard') refreshDashboard();
-    if (page === 'transactions') { refreshTxForm(); refreshTxList(); }
-    if (page === 'statistics') refreshStats();
-    if (page === 'settings') refreshSettings();
+    if(page==='dashboard') refreshDashboard();
+    if(page==='transactions') { refreshTxForm(); refreshTxList(); }
+    if(page==='statistics') refreshStats();
+    if(page==='settings') refreshSettings();
   };
 
-  // 记账类型切换
-  window.setTxType = (type) => {
-    txType = type;
-    document.getElementById('btnIncome').style.background = type==='income'?'#ecfdf5':'#fafbfc';
-    document.getElementById('btnExpense').style.background = type==='expense'?'#fef2f2':'#fafbfc';
-    document.getElementById('btnTransfer').style.background = type==='transfer'?'#f4f0ff':'#fafbfc';
-    document.getElementById('normalFields').style.display = type==='transfer'?'none':'block';
-    document.getElementById('transferFields').style.display = type==='transfer'?'block':'none';
-    if (type !== 'transfer') {
-      populateCat1Select('txCat1', type);
-      document.getElementById('txCat2').innerHTML = '<option value="">请选择</option>';
-    }
-  };
-
-  // 通用填充函数
-  const populateCat1Select = async (selectId, direction) => {
-    const cats = direction === 'income' ? await getIncomeCat() : await getExpenseCat();
-    const sel = document.getElementById(selectId);
-    if (!sel) return;
-    sel.innerHTML = '<option value="">请选择</option>';
-    cats.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name}</option>`);
-  };
-  const populateCat2Select = async (selectId, parentId, direction) => {
-    const cats = direction === 'income' ? await getIncomeCat() : await getExpenseCat();
-    const parent = cats.find(c => c.id === parentId);
-    const sel = document.getElementById(selectId);
-    if (!sel) return;
-    sel.innerHTML = '<option value="">请选择</option>';
-    if (parent && parent.children) {
-      parent.children.forEach(ch => sel.innerHTML += `<option value="${ch.id}">${ch.name}</option>`);
-    }
-  };
+  // 核心：根据类型填充相关下拉
   const populateAccountSelect = async (selectId) => {
     const accounts = await getAccounts();
     const sel = document.getElementById(selectId);
-    if (!sel) return;
+    if(!sel) return;
     sel.innerHTML = accounts.map(a => `<option value="${a.id}">${a.name} (${a.currency} ${(a.balance||0).toFixed(2)})</option>`).join('');
   };
   const populateCurrencySelect = async (selectId) => {
     const rates = await getRates();
     const sel = document.getElementById(selectId);
-    if (!sel) return;
-    sel.innerHTML = rates.map(r => `<option value="${r.currency}">${r.currency} (${r.rate})</option>`).join('');
-    if (!rates.find(r => r.currency === 'CNY')) sel.innerHTML += '<option value="CNY">CNY (基准)</option>';
+    if(!sel) return;
+    sel.innerHTML = rates.map(r => `<option value="${r.currency}">${r.currency} (汇率:${r.rate})</option>`).join('');
+    if(!rates.find(r=>r.currency==='CNY')) sel.innerHTML += '<option value="CNY">CNY (基准)</option>';
+  };
+  const populateCat1Select = async (selectId, direction) => {
+    const cats = direction==='income' ? await getIncomeCat() : await getExpenseCat();
+    const sel = document.getElementById(selectId);
+    if(!sel) return;
+    sel.innerHTML = '<option value="">请选择</option>';
+    cats.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name}</option>`);
+  };
+  const populateCat2Select = async (selectId, parentId, direction) => {
+    const cats = direction==='income' ? await getIncomeCat() : await getExpenseCat();
+    const parent = cats.find(c => c.id === parentId);
+    const sel = document.getElementById(selectId);
+    if(!sel) return;
+    sel.innerHTML = '<option value="">请选择</option>';
+    if(parent && parent.children) parent.children.forEach(ch => sel.innerHTML += `<option value="${ch.id}">${ch.name}</option>`);
   };
 
-  // 一级项目变更联动二级
+  // 类型切换时立即填充账户
+  window.setTxType = (type) => {
+    txType = type;
+    document.getElementById('btnIncome').style.background = type==='income'?'#ecfdf5':'#fafbfc';
+    document.getElementById('btnExpense').style.background = type==='expense'?'#fef2f2':'#fafbfc';
+    document.getElementById('btnTransfer').style.background = type==='transfer'?'#f4f0ff':'#fafbfc';
+
+    const normal = document.getElementById('normalFields');
+    const transfer = document.getElementById('transferFields');
+    normal.style.display = type==='transfer'?'none':'block';
+    transfer.style.display = type==='transfer'?'block':'none';
+
+    if(type !== 'transfer') {
+      populateCat1Select('txCat1', type);
+      document.getElementById('txCat2').innerHTML = '<option value="">请选择</option>';
+      populateAccountSelect('txAccount');    // 填充普通账户下拉
+    } else {
+      populateAccountSelect('txFromAccount');  // 填充转账账户下拉
+      populateAccountSelect('txToAccount');
+    }
+  };
+
+  // 记账页初始化
+  const refreshTxForm = async () => {
+    document.getElementById('txDate').value = todayStr();
+    document.getElementById('txAmount').value = '';
+    document.getElementById('txNote').value = '';
+    document.getElementById('txEditId').value = '';
+    document.getElementById('btnCancelEdit').style.display = 'none';
+    await populateCurrencySelect('txCurrency');
+    document.getElementById('txCurrency').value = 'CNY';
+    setTxType('income');
+  };
+
+  // 一级项目联动
   document.addEventListener('change', async (e) => {
-    if (e.target.id === 'txCat1') await populateCat2Select('txCat2', e.target.value, txType);
+    if(e.target.id === 'txCat1') {
+      await populateCat2Select('txCat2', e.target.value, txType);
+    }
   });
 
-  // 记录保存
   window.saveTransaction = async () => {
     const date = document.getElementById('txDate').value;
     const amount = parseFloat(document.getElementById('txAmount').value);
     const currency = document.getElementById('txCurrency').value;
     const note = document.getElementById('txNote').value;
     const editId = document.getElementById('txEditId').value;
-    if (!date || isNaN(amount) || amount <= 0) { alert('请填写完整信息'); return; }
+    if(!date || isNaN(amount) || amount<=0) return alert('请填写完整金额');
 
-    if (txType === 'transfer') {
+    if(txType === 'transfer') {
       const fromId = document.getElementById('txFromAccount').value;
       const toId = document.getElementById('txToAccount').value;
-      if (!fromId || !toId) { alert('请选择转出和转入账户'); return; }
-      if (fromId === toId) { alert('不能相同账户'); return; }
+      if(!fromId || !toId) return alert('请选择转出和转入账户');
+      if(fromId === toId) return alert('不能相同账户');
       const accounts = await getAccounts();
       const fromAcc = accounts.find(a => a.id === fromId);
       const toAcc = accounts.find(a => a.id === toId);
-      if (!fromAcc || !toAcc) return;
-      if (parseFloat(fromAcc.balance) < amount) { alert('余额不足'); return; }
+      if(!fromAcc || !toAcc) return;
+      if(parseFloat(fromAcc.balance) < amount) return alert('转出账户余额不足');
       const rateMap = await getRateMap();
       const fromRate = rateMap[currency] || 1;
       const toRate = rateMap[toAcc.currency] || 1;
@@ -363,123 +369,83 @@
         toAccountId: toId, toAccountName: toAcc.name, currency, amount,
         toCurrency: toAcc.currency, toAmount: parseFloat(toAmount.toFixed(2)), note, createdAt: Date.now()
       };
-      if (editId) {
-        txData.id = parseInt(editId);
-        await dbPut('transactions', txData);
-      } else {
-        await dbPut('transactions', txData);
-      }
+      if(editId) { txData.id = parseInt(editId); await dbPut('transactions', txData); }
+      else await dbPut('transactions', txData);
     } else {
       const cat1Id = document.getElementById('txCat1').value;
       const cat2Id = document.getElementById('txCat2').value;
       const accountId = document.getElementById('txAccount').value;
-      if (!cat1Id || !cat2Id || !accountId) { alert('请完整填写项目和账户'); return; }
-      const cats = txType === 'income' ? await getIncomeCat() : await getExpenseCat();
+      if(!cat1Id || !cat2Id || !accountId) return alert('请完整填写项目和账户');
+      const cats = txType==='income' ? await getIncomeCat() : await getExpenseCat();
       const parent = cats.find(c => c.id === cat1Id);
       const child = parent?.children?.find(c => c.id === cat2Id);
       const accounts = await getAccounts();
       const account = accounts.find(a => a.id === accountId);
-      const cnyAmount = await toCNY(amount, currency);
-      const delta = txType === 'income' ? cnyAmount : -cnyAmount;
-      account.balance = (parseFloat(account.balance) || 0) + delta;
+      const cny = await toCNY(amount, currency);
+      const delta = txType==='income' ? cny : -cny;
+      account.balance = (parseFloat(account.balance)||0) + delta;
       await saveAccounts(accounts);
       const txData = {
-        date, direction: txType, category1Id: cat1Id, category1Name: parent?.name || '',
-        category2Id: cat2Id, category2Name: child?.name || '',
-        accountId, accountName: account?.name || '', currency, amount, note, createdAt: Date.now()
+        date, direction: txType, category1Id: cat1Id, category1Name: parent?.name||'',
+        category2Id: cat2Id, category2Name: child?.name||'', accountId, accountName: account?.name||'',
+        currency, amount, note, createdAt: Date.now()
       };
-      if (editId) {
-        txData.id = parseInt(editId);
-        await dbPut('transactions', txData);
-      } else {
-        await dbPut('transactions', txData);
-      }
+      if(editId) { txData.id = parseInt(editId); await dbPut('transactions', txData); }
+      else await dbPut('transactions', txData);
     }
-    await refreshTxForm();
-    await refreshTxList();
+    refreshTxForm(); refreshTxList();
     document.getElementById('txEditId').value = '';
     document.getElementById('btnCancelEdit').style.display = 'none';
   };
 
-  window.cancelEdit = () => {
-    document.getElementById('txEditId').value = '';
-    document.getElementById('btnCancelEdit').style.display = 'none';
-    refreshTxForm();
-  };
-
-  const refreshTxForm = async () => {
-    document.getElementById('txDate').value = todayStr();
-    document.getElementById('txAmount').value = '';
-    document.getElementById('txNote').value = '';
-    document.getElementById('txEditId').value = '';
-    document.getElementById('btnCancelEdit').style.display = 'none';
-    setTxType('income');
-    await populateCurrencySelect('txCurrency');
-    document.getElementById('txCurrency').value = 'CNY';
-  };
+  window.cancelEdit = () => { document.getElementById('txEditId').value=''; document.getElementById('btnCancelEdit').style.display='none'; refreshTxForm(); };
 
   const refreshTxList = async () => {
     const all = await dbGetAll('transactions');
     all.sort((a,b) => b.date.localeCompare(a.date) || (b.createdAt||0)-(a.createdAt||0));
     document.getElementById('txCount').textContent = all.length+'条';
-    const container = document.getElementById('txList');
-    container.innerHTML = all.slice(0,50).map(tx => {
-      if (tx.direction === 'transfer') {
-        return `<div class="tx-item" onclick="editTx(${tx.id})">
-          <div class="tx-icon transfer">🔄</div>
-          <div class="tx-info"><div class="tx-cat">转账</div><div class="tx-meta">${tx.date} ${tx.fromAccountName} → ${tx.toAccountName} ${tx.note||''}</div></div>
-          <div class="tx-amount" style="color:var(--transfer)">-${tx.amount.toFixed(2)}</div>
-          <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteTx(${tx.id})">🗑</button>
-        </div>`;
-      }
-      const icon = tx.direction==='income'?'💰':'💸';
-      const sign = tx.direction==='income'?'+':'-';
-      return `<div class="tx-item" onclick="editTx(${tx.id})">
-        <div class="tx-icon ${tx.direction}">${icon}</div>
-        <div class="tx-info"><div class="tx-cat">${tx.category2Name||tx.category1Name}</div><div class="tx-meta">${tx.date} · ${tx.accountName} · ${tx.currency}</div></div>
-        <div class="tx-amount ${tx.direction==='income'?'income-text':'expense-text'}">${sign}${tx.amount.toFixed(2)}</div>
-        <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteTx(${tx.id})">🗑</button>
-      </div>`;
+    const html = all.slice(0,50).map(tx => {
+      if(tx.direction==='transfer') return `<div class="tx-item" onclick="editTx(${tx.id})"><div class="tx-icon transfer">🔄</div><div class="tx-info"><div class="tx-cat">转账</div><div class="tx-meta">${tx.date} ${tx.fromAccountName}→${tx.toAccountName}</div></div><div class="tx-amount" style="color:var(--transfer)">-${tx.amount.toFixed(2)}</div><button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteTx(${tx.id})">🗑</button></div>`;
+      return `<div class="tx-item" onclick="editTx(${tx.id})"><div class="tx-icon ${tx.direction}">${tx.direction==='income'?'💰':'💸'}</div><div class="tx-info"><div class="tx-cat">${tx.category2Name||tx.category1Name}</div><div class="tx-meta">${tx.date} · ${tx.accountName} · ${tx.currency}</div></div><div class="tx-amount ${tx.direction==='income'?'income-text':'expense-text'}">${tx.direction==='income'?'+':'-'}${tx.amount.toFixed(2)}</div><button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteTx(${tx.id})">🗑</button></div>`;
     }).join('') || '<div class="empty-state">📝 暂无记录</div>';
+    document.getElementById('txList').innerHTML = html;
   };
 
   window.deleteTx = async (id) => {
-    if (!confirm('确定删除此记录吗？')) return;
+    if(!confirm('确定删除？')) return;
     const tx = await dbGet('transactions', id);
-    if (!tx) return;
-    if (tx.direction === 'transfer') {
+    if(!tx) return;
+    if(tx.direction === 'transfer') {
       const accounts = await getAccounts();
-      const from = accounts.find(a => a.id === tx.fromAccountId);
-      const to = accounts.find(a => a.id === tx.toAccountId);
-      if (from) from.balance = parseFloat(from.balance) + tx.amount;
-      if (to) to.balance = parseFloat(to.balance) - tx.toAmount;
+      const from = accounts.find(a=>a.id===tx.fromAccountId);
+      const to = accounts.find(a=>a.id===tx.toAccountId);
+      if(from) from.balance = parseFloat(from.balance) + tx.amount;
+      if(to) to.balance = parseFloat(to.balance) - tx.toAmount;
       await saveAccounts(accounts);
     } else {
       const accounts = await getAccounts();
-      const acc = accounts.find(a => a.id === tx.accountId);
-      if (acc) {
+      const acc = accounts.find(a=>a.id===tx.accountId);
+      if(acc) {
         const cny = await toCNY(tx.amount, tx.currency);
-        acc.balance = parseFloat(acc.balance) + (tx.direction==='income' ? -cny : cny);
+        acc.balance = parseFloat(acc.balance) + (tx.direction==='income'? -cny : cny);
         await saveAccounts(accounts);
       }
     }
     await dbDelete('transactions', id);
     refreshTxList();
-    if (currentPage === 'dashboard') refreshDashboard();
-    if (currentPage === 'statistics') refreshStats();
+    if(currentPage==='dashboard') refreshDashboard();
+    if(currentPage==='statistics') refreshStats();
   };
 
   window.editTx = async (id) => {
     const tx = await dbGet('transactions', id);
-    if (!tx) return;
+    if(!tx) return;
     document.getElementById('txEditId').value = tx.id;
     document.getElementById('txDate').value = tx.date;
     document.getElementById('txAmount').value = tx.amount;
-    document.getElementById('txNote').value = tx.note || '';
+    document.getElementById('txNote').value = tx.note||'';
     setTxType(tx.direction);
-    if (tx.direction === 'transfer') {
-      await populateAccountSelect('txFromAccount');
-      await populateAccountSelect('txToAccount');
+    if(tx.direction === 'transfer') {
       document.getElementById('txFromAccount').value = tx.fromAccountId;
       document.getElementById('txToAccount').value = tx.toAccountId;
     } else {
@@ -487,7 +453,6 @@
       document.getElementById('txCat1').value = tx.category1Id;
       await populateCat2Select('txCat2', tx.category1Id, tx.direction);
       document.getElementById('txCat2').value = tx.category2Id;
-      await populateAccountSelect('txAccount');
       document.getElementById('txAccount').value = tx.accountId;
     }
     await populateCurrencySelect('txCurrency');
@@ -497,58 +462,34 @@
 
   // 仪表盘
   const refreshDashboard = async () => {
-    const today = todayStr();
-    const week = getWeekRange();
-    const month = getMonthRange();
-    const year = getYearRange();
-    const [tTx, wTx, mTx, yTx] = await Promise.all([
-      dbGetAll('transactions').then(all => all.filter(t => t.date >= today && t.date <= today && t.direction !== 'transfer')),
-      dbGetAll('transactions').then(all => all.filter(t => t.date >= week.from && t.date <= week.to && t.direction !== 'transfer')),
-      dbGetAll('transactions').then(all => all.filter(t => t.date >= month.from && t.date <= month.to && t.direction !== 'transfer')),
-      dbGetAll('transactions').then(all => all.filter(t => t.date >= year.from && t.date <= year.to && t.direction !== 'transfer'))
-    ]);
-
-    const calcSum = async (txs, dir) => { let s=0; for(const t of txs) if(t.direction===dir) s+= await toCNY(t.amount, t.currency); return s; };
+    const today = todayStr(), week = getWeekRange(), month = getMonthRange(), year = getYearRange();
+    const filter = (all, f, t) => all.filter(tx => tx.date>=f && tx.date<=t && tx.direction!=='transfer');
+    const allTx = await dbGetAll('transactions');
+    const [tT, tW, tM, tY] = [filter(allTx, today, today), filter(allTx, week.from, week.to), filter(allTx, month.from, month.to), filter(allTx, year.from, year.to)];
+    const calc = async (txs, dir) => { let s=0; for(const t of txs) if(t.direction===dir) s+= await toCNY(t.amount, t.currency); return s; };
     const setPeriod = async (key, txs) => {
-      const inc = await calcSum(txs, 'income');
-      const exp = await calcSum(txs, 'expense');
-      const bal = inc - exp;
+      const inc = await calc(txs, 'income'), exp = await calc(txs, 'expense'), bal = inc-exp;
       document.getElementById(`sum-${key}-income`).textContent = formatMoney(inc);
       document.getElementById(`sum-${key}-expense`).textContent = formatMoney(exp);
-      const balEl = document.getElementById(`sum-${key}-balance`);
-      balEl.textContent = (bal>=0?'盈余':'亏损') + ' ' + formatMoney(Math.abs(bal));
-      balEl.style.color = bal>=0 ? 'var(--primary)' : 'var(--expense)';
+      const el = document.getElementById(`sum-${key}-balance`);
+      el.textContent = (bal>=0?'盈余':'亏损') + ' ' + formatMoney(Math.abs(bal));
+      el.style.color = bal>=0 ? 'var(--primary)' : 'var(--expense)';
     };
-    await Promise.all([
-      setPeriod('today', tTx), setPeriod('week', wTx), setPeriod('month', mTx), setPeriod('year', yTx)
-    ]);
+    await Promise.all([setPeriod('today',tT), setPeriod('week',tW), setPeriod('month',tM), setPeriod('year',tY)]);
 
-    // 柱状图
-    if (charts.monthlyBar) charts.monthlyBar.destroy();
-    const canvas = document.getElementById('chartMonthlyBar');
-    if (canvas) {
-      let inc = 0, exp = 0;
-      for (const t of mTx) {
-        const cny = await toCNY(t.amount, t.currency);
-        if (t.direction === 'income') inc += cny; else if (t.direction === 'expense') exp += cny;
-      }
-      charts.monthlyBar = new Chart(canvas, {
-        type: 'bar', data: { labels: ['本月'], datasets: [{ label: '收入', data: [inc], backgroundColor: '#10B981' }, { label: '支出', data: [exp], backgroundColor: '#EF4444' }] },
-        options: { responsive: true, maintainAspectRatio: true, aspectRatio: 2.5 }
-      });
-    }
-    // 资产分布
-    if (charts.assets) charts.assets.destroy();
-    const assetCanvas = document.getElementById('chartAssets');
-    if (assetCanvas) {
-      const accounts = await getAccounts();
-      const rateMap = await getRateMap();
-      const labels = accounts.map(a => a.name);
-      const data = accounts.map(a => (parseFloat(a.balance)* (rateMap[a.currency]||1)).toFixed(2));
-      charts.assets = new Chart(assetCanvas, {
-        type: 'pie', data: { labels, datasets: [{ data, backgroundColor: ['#4A6CF7','#10B981','#F59E0B','#EF4444','#8B5CF6'] }] }
-      });
-    }
+    if(charts.monthlyBar) charts.monthlyBar.destroy();
+    let inc=0, exp=0;
+    for(const t of tM) { const cny = await toCNY(t.amount, t.currency); if(t.direction==='income') inc+=cny; else if(t.direction==='expense') exp+=cny; }
+    charts.monthlyBar = new Chart(document.getElementById('chartMonthlyBar'), {
+      type:'bar', data:{ labels:['本月'], datasets:[{label:'收入',data:[inc],backgroundColor:'#10B981'},{label:'支出',data:[exp],backgroundColor:'#EF4444'}] },
+      options:{ responsive:true, aspectRatio:2.5 }
+    });
+
+    if(charts.assets) charts.assets.destroy();
+    const accounts = await getAccounts(), rm = await getRateMap();
+    charts.assets = new Chart(document.getElementById('chartAssets'), {
+      type:'pie', data:{ labels: accounts.map(a=>a.name), datasets:[{ data: accounts.map(a=> (parseFloat(a.balance)* (rm[a.currency]||1)).toFixed(2)), backgroundColor:['#4A6CF7','#10B981','#F59E0B','#EF4444','#8B5CF6'] }] }
+    });
     document.getElementById('headerDate').textContent = new Date().toLocaleDateString('zh-CN',{weekday:'short',month:'short',day:'numeric'});
   };
 
@@ -556,242 +497,98 @@
   window.refreshStats = async () => {
     const from = document.getElementById('statDateFrom').value || getMonthRange().from;
     const to = document.getElementById('statDateTo').value || getMonthRange().to;
-    const txs = (await dbGetAll('transactions')).filter(t => t.date >= from && t.date <= to && t.direction !== 'transfer');
-    let inc = 0, exp = 0;
-    const incMap = {}, expMap = {};
-    for (const t of txs) {
+    const txs = (await dbGetAll('transactions')).filter(t => t.date>=from && t.date<=to && t.direction!=='transfer');
+    let inc=0, exp=0; const im={}, em={};
+    for(const t of txs){
       const cny = await toCNY(t.amount, t.currency);
-      if (t.direction === 'income') {
-        inc += cny; const k = t.category1Name || '未知'; incMap[k] = (incMap[k]||0)+cny;
-      } else {
-        exp += cny; const k = t.category1Name || '未知'; expMap[k] = (expMap[k]||0)+cny;
-      }
+      if(t.direction==='income'){ inc+=cny; const k=t.category1Name||'未知'; im[k]=(im[k]||0)+cny; }
+      else{ exp+=cny; const k=t.category1Name||'未知'; em[k]=(em[k]||0)+cny; }
     }
     document.getElementById('statIncome').textContent = formatMoney(inc);
     document.getElementById('statExpense').textContent = formatMoney(exp);
-    document.getElementById('statBalance').textContent = formatMoney(inc - exp);
-
-    if (charts.incPie) charts.incPie.destroy();
-    if (charts.expPie) charts.expPie.destroy();
+    document.getElementById('statBalance').textContent = formatMoney(inc-exp);
+    if(charts.incPie) charts.incPie.destroy();
+    if(charts.expPie) charts.expPie.destroy();
     const createPie = (canvasId, map) => {
-      const canvas = document.getElementById(canvasId);
-      if (!canvas) return;
       const labels = Object.keys(map), data = Object.values(map);
-      if (labels.length === 0) { labels.push('无数据'); data.push(1); }
-      return new Chart(canvas, { type: 'pie', data: { labels, datasets: [{ data, backgroundColor: ['#10B981','#34D399','#6EE7B7','#059669'] }] } });
+      if(labels.length===0){ labels.push('无数据'); data.push(1); }
+      return new Chart(document.getElementById(canvasId), { type:'pie', data:{ labels, datasets:[{ data, backgroundColor:['#10B981','#34D399','#6EE7B7','#059669'] }] } });
     };
-    charts.incPie = createPie('chartStatIncomePie', incMap);
-    charts.expPie = createPie('chartStatExpensePie', expMap);
+    charts.incPie = createPie('chartStatIncomePie', im);
+    charts.expPie = createPie('chartStatExpensePie', em);
   };
 
-  // 设置页刷新
+  // 设置页面
   const refreshSettings = async () => {
-    const incCats = await getIncomeCat();
-    document.getElementById('incomeCatList').innerHTML = incCats.map(c => `
-      <div style="margin-bottom:6px;">
-        <span class="tag parent-tag">📁 ${c.name} <span class="tag-del" onclick="deleteIncomeLevel1('${c.id}')">×</span></span>
-        <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">
-          ${(c.children||[]).map(ch => `<span class="tag">${ch.name} <span class="tag-del" onclick="deleteIncomeLevel2('${c.id}','${ch.id}')">×</span></span>`).join('')}
-        </div>
-      </div>`).join('');
-    const selIncome = document.getElementById('selIncomeParent');
-    selIncome.innerHTML = '<option value="">选择一级项目</option>' + incCats.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    const inc = await getIncomeCat();
+    document.getElementById('incomeCatList').innerHTML = inc.map(c => `<div style="margin-bottom:6px;"><span class="tag parent-tag">📁 ${c.name} <span class="tag-del" onclick="deleteIncomeLevel1('${c.id}')">×</span></span><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">${(c.children||[]).map(ch => `<span class="tag">${ch.name} <span class="tag-del" onclick="deleteIncomeLevel2('${c.id}','${ch.id}')">×</span></span>`).join('')}</div></div>`).join('');
+    const selInc = document.getElementById('selIncomeParent');
+    selInc.innerHTML = '<option value="">选择一级项目</option>' + inc.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
 
-    const expCats = await getExpenseCat();
-    document.getElementById('expenseCatList').innerHTML = expCats.map(c => `
-      <div style="margin-bottom:6px;">
-        <span class="tag parent-tag">📁 ${c.name} <span class="tag-del" onclick="deleteExpenseLevel1('${c.id}')">×</span></span>
-        <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">
-          ${(c.children||[]).map(ch => `<span class="tag">${ch.name} <span class="tag-del" onclick="deleteExpenseLevel2('${c.id}','${ch.id}')">×</span></span>`).join('')}
-        </div>
-      </div>`).join('');
-    const selExp = document.getElementById('selExpenseParent');
-    selExp.innerHTML = '<option value="">选择一级项目</option>' + expCats.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    const exp = await getExpenseCat();
+    document.getElementById('expenseCatList').innerHTML = exp.map(c => `<div style="margin-bottom:6px;"><span class="tag parent-tag">📁 ${c.name} <span class="tag-del" onclick="deleteExpenseLevel1('${c.id}')">×</span></span><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">${(c.children||[]).map(ch => `<span class="tag">${ch.name} <span class="tag-del" onclick="deleteExpenseLevel2('${c.id}','${ch.id}')">×</span></span>`).join('')}</div></div>`).join('');
+    document.getElementById('selExpenseParent').innerHTML = '<option value="">选择一级项目</option>' + exp.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
 
     const accounts = await getAccounts();
     document.getElementById('accountList').innerHTML = accounts.map(a => `<span class="tag">🏦 ${a.name} (${a.currency} ${(a.balance||0).toFixed(2)}) <span class="tag-del" onclick="deleteAccount('${a.id}')">×</span></span>`).join('');
 
     const rates = await getRates();
-    document.getElementById('rateList').innerHTML = rates.map(r => `<span class="tag">🌐 ${r.currency} = ¥${r.rate} ${r.currency!=='CNY' ? `<span class="tag-del" onclick="deleteRate('${r.currency}')">×</span>` : ''}</span>`).join('');
+    document.getElementById('rateList').innerHTML = rates.map(r => `<span class="tag">🌐 ${r.currency} = ¥${r.rate} ${r.currency!=='CNY'?`<span class="tag-del" onclick="deleteRate('${r.currency}')">×</span>`:''}</span>`).join('');
   };
 
-  // 设置操作函数 (全局)
-  window.addIncomeLevel1 = async () => {
-    const name = document.getElementById('newIncomeCat1').value.trim();
-    if (!name) return alert('请输入名称');
-    const cats = await getIncomeCat();
-    cats.push({ id: 'inc' + Date.now(), name, children: [] });
-    await saveIncomeCat(cats);
-    document.getElementById('newIncomeCat1').value = '';
-    refreshSettings();
-  };
-  window.addIncomeLevel2 = async () => {
-    const parentId = document.getElementById('selIncomeParent').value;
-    const name = document.getElementById('newIncomeCat2').value.trim();
-    if (!parentId || !name) return alert('请选择一级项目并输入二级名称');
-    const cats = await getIncomeCat();
-    const parent = cats.find(c => c.id === parentId);
-    if (!parent) return alert('未找到一级项目');
-    parent.children.push({ id: 'inc2_' + Date.now(), name });
-    await saveIncomeCat(cats);
-    document.getElementById('newIncomeCat2').value = '';
-    refreshSettings();
-  };
-  window.deleteIncomeLevel1 = async (id) => {
-    if (!confirm('删除一级项目将同时删除其下所有二级项目，确定？')) return;
-    let cats = await getIncomeCat();
-    cats = cats.filter(c => c.id !== id);
-    await saveIncomeCat(cats);
-    refreshSettings();
-  };
-  window.deleteIncomeLevel2 = async (parentId, childId) => {
-    if (!confirm('删除此二级项目？')) return;
-    const cats = await getIncomeCat();
-    const parent = cats.find(c => c.id === parentId);
-    if (parent) parent.children = parent.children.filter(ch => ch.id !== childId);
-    await saveIncomeCat(cats);
-    refreshSettings();
-  };
+  // 设置操作（略，已完整）
+  window.addIncomeLevel1 = async () => { const n=document.getElementById('newIncomeCat1').value.trim(); if(!n)return; const c=await getIncomeCat(); c.push({id:'inc'+Date.now(),name:n,children:[]}); await saveIncomeCat(c); refreshSettings(); };
+  window.addIncomeLevel2 = async () => { const pid=document.getElementById('selIncomeParent').value, n=document.getElementById('newIncomeCat2').value.trim(); if(!pid||!n)return; const c=await getIncomeCat(); const p=c.find(x=>x.id===pid); if(p) p.children.push({id:'inc2_'+Date.now(),name:n}); await saveIncomeCat(c); refreshSettings(); };
+  window.deleteIncomeLevel1 = async (id) => { if(!confirm('删除一级？'))return; let c=await getIncomeCat(); c=c.filter(x=>x.id!==id); await saveIncomeCat(c); refreshSettings(); };
+  window.deleteIncomeLevel2 = async (pid,cid) => { if(!confirm('删除二级？'))return; const c=await getIncomeCat(); const p=c.find(x=>x.id===pid); if(p)p.children=p.children.filter(x=>x.id!==cid); await saveIncomeCat(c); refreshSettings(); };
+  window.addExpenseLevel1 = async () => { const n=document.getElementById('newExpenseCat1').value.trim(); if(!n)return; const c=await getExpenseCat(); c.push({id:'exp'+Date.now(),name:n,children:[]}); await saveExpenseCat(c); refreshSettings(); };
+  window.addExpenseLevel2 = async () => { const pid=document.getElementById('selExpenseParent').value, n=document.getElementById('newExpenseCat2').value.trim(); if(!pid||!n)return; const c=await getExpenseCat(); const p=c.find(x=>x.id===pid); if(p)p.children.push({id:'exp2_'+Date.now(),name:n}); await saveExpenseCat(c); refreshSettings(); };
+  window.deleteExpenseLevel1 = async (id) => { if(!confirm('删除一级？'))return; let c=await getExpenseCat(); c=c.filter(x=>x.id!==id); await saveExpenseCat(c); refreshSettings(); };
+  window.deleteExpenseLevel2 = async (pid,cid) => { if(!confirm('删除二级？'))return; const c=await getExpenseCat(); const p=c.find(x=>x.id===pid); if(p)p.children=p.children.filter(x=>x.id!==cid); await saveExpenseCat(c); refreshSettings(); };
+  window.addAccount = async () => { const n=document.getElementById('newAccountName').value.trim(), b=parseFloat(document.getElementById('newAccountBalance').value)||0, cur=document.getElementById('newAccountCurrency').value; if(!n)return; const a=await getAccounts(); a.push({id:'acct'+Date.now(),name:n,balance:b,currency:cur}); await saveAccounts(a); refreshSettings(); };
+  window.deleteAccount = async (id) => { if(!confirm('删除账户？'))return; let a=await getAccounts(); a=a.filter(x=>x.id!==id); await saveAccounts(a); refreshSettings(); };
+  window.addRate = async () => { const cur=document.getElementById('newRateCurrency').value.trim().toUpperCase(), r=parseFloat(document.getElementById('newRateValue').value); if(!cur||isNaN(r)||r<=0)return; if(cur==='CNY')return; let rates=await getRates(); const idx=rates.findIndex(x=>x.currency===cur); if(idx>=0) rates[idx].rate=r; else rates.push({currency:cur,rate:r}); await saveRates(rates); refreshSettings(); };
+  window.deleteRate = async (cur) => { if(cur==='CNY')return; if(!confirm('删除汇率？'))return; let rates=await getRates(); rates=rates.filter(x=>x.currency!==cur); await saveRates(rates); refreshSettings(); };
 
-  window.addExpenseLevel1 = async () => {
-    const name = document.getElementById('newExpenseCat1').value.trim();
-    if (!name) return alert('请输入名称');
-    const cats = await getExpenseCat();
-    cats.push({ id: 'exp' + Date.now(), name, children: [] });
-    await saveExpenseCat(cats);
-    document.getElementById('newExpenseCat1').value = '';
-    refreshSettings();
-  };
-  window.addExpenseLevel2 = async () => {
-    const parentId = document.getElementById('selExpenseParent').value;
-    const name = document.getElementById('newExpenseCat2').value.trim();
-    if (!parentId || !name) return alert('请选择一级项目并输入二级名称');
-    const cats = await getExpenseCat();
-    const parent = cats.find(c => c.id === parentId);
-    if (!parent) return alert('未找到一级项目');
-    parent.children.push({ id: 'exp2_' + Date.now(), name });
-    await saveExpenseCat(cats);
-    document.getElementById('newExpenseCat2').value = '';
-    refreshSettings();
-  };
-  window.deleteExpenseLevel1 = async (id) => {
-    if (!confirm('删除一级项目将同时删除其下所有二级项目，确定？')) return;
-    let cats = await getExpenseCat();
-    cats = cats.filter(c => c.id !== id);
-    await saveExpenseCat(cats);
-    refreshSettings();
-  };
-  window.deleteExpenseLevel2 = async (parentId, childId) => {
-    if (!confirm('删除此二级项目？')) return;
-    const cats = await getExpenseCat();
-    const parent = cats.find(c => c.id === parentId);
-    if (parent) parent.children = parent.children.filter(ch => ch.id !== childId);
-    await saveExpenseCat(cats);
-    refreshSettings();
-  };
-
-  window.addAccount = async () => {
-    const name = document.getElementById('newAccountName').value.trim();
-    const balance = parseFloat(document.getElementById('newAccountBalance').value) || 0;
-    const currency = document.getElementById('newAccountCurrency').value;
-    if (!name) return alert('请输入账户名称');
-    const accounts = await getAccounts();
-    accounts.push({ id: 'acct' + Date.now(), name, balance, currency });
-    await saveAccounts(accounts);
-    document.getElementById('newAccountName').value = '';
-    document.getElementById('newAccountBalance').value = '';
-    refreshSettings();
-  };
-  window.deleteAccount = async (id) => {
-    if (!confirm('确定删除此账户？')) return;
-    let accounts = await getAccounts();
-    accounts = accounts.filter(a => a.id !== id);
-    await saveAccounts(accounts);
-    refreshSettings();
-  };
-
-  window.addRate = async () => {
-    const cur = document.getElementById('newRateCurrency').value.trim().toUpperCase();
-    const rate = parseFloat(document.getElementById('newRateValue').value);
-    if (!cur || isNaN(rate) || rate <= 0) return alert('请输入有效货币和汇率');
-    if (cur === 'CNY') return alert('CNY为基准货币');
-    let rates = await getRates();
-    const idx = rates.findIndex(r => r.currency === cur);
-    if (idx >= 0) rates[idx].rate = rate;
-    else rates.push({ currency: cur, rate });
-    await saveRates(rates);
-    document.getElementById('newRateCurrency').value = '';
-    document.getElementById('newRateValue').value = '';
-    refreshSettings();
-  };
-  window.deleteRate = async (cur) => {
-    if (cur === 'CNY') return;
-    if (!confirm('删除汇率：' + cur + '？')) return;
-    let rates = await getRates();
-    rates = rates.filter(r => r.currency !== cur);
-    await saveRates(rates);
-    refreshSettings();
-  };
-
-  // 导入导出
   window.exportData = async () => {
-    const transactions = await dbGetAll('transactions');
-    const settings = {};
-    for (const k of ['incomeCat','expenseCat','accounts','rates']) {
-      const v = await dbGet('settings', k);
-      if (v) settings[k] = v.value;
-    }
-    const blob = new Blob([JSON.stringify({ transactions, settings }, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `记账备份_${todayStr()}.json`;
-    a.click();
+    const tx = await dbGetAll('transactions');
+    const s = {}; for(const k of ['incomeCat','expenseCat','accounts','rates']) s[k] = (await dbGet('settings',k))?.value;
+    const blob = new Blob([JSON.stringify({transactions:tx, settings:s},null,2)], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `记账备份_${todayStr()}.json`; a.click();
   };
-  window.importData = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    if (!confirm('导入将覆盖当前所有数据，确定吗？')) { event.target.value = ''; return; }
+  window.importData = async (e) => {
+    const file = e.target.files[0]; if(!file)return;
+    if(!confirm('导入将覆盖当前数据，确定？')){ e.target.value=''; return; }
     const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const data = JSON.parse(e.target.result);
-        if (!data.transactions || !data.settings) throw new Error('文件格式错误');
-        await dbClear('transactions');
-        await dbClear('settings');
-        for (const tx of data.transactions) await dbPut('transactions', tx);
-        for (const key in data.settings) await setSetting(key, data.settings[key]);
-        alert('导入成功，页面将刷新。');
-        location.reload();
-      } catch (err) { alert('导入失败：' + err.message); }
+    reader.onload = async (ev) => {
+      try{
+        const d = JSON.parse(ev.target.result);
+        if(!d.transactions || !d.settings) throw new Error('格式错误');
+        await dbClear('transactions'); await dbClear('settings');
+        for(const tx of d.transactions) await dbPut('transactions', tx);
+        for(const k in d.settings) await setSetting(k, d.settings[k]);
+        alert('导入成功'); location.reload();
+      }catch(err){ alert('导入失败：'+err.message); }
     };
-    reader.readAsText(file);
-    event.target.value = '';
+    reader.readAsText(file); e.target.value='';
   };
-  window.resetAllData = async () => {
-    if (!confirm('重置将删除所有数据并恢复默认，确定？')) return;
-    await dbClear('transactions');
-    await dbClear('settings');
-    location.reload();
-  };
+  window.resetAllData = async () => { if(!confirm('重置所有数据？'))return; await dbClear('transactions'); await dbClear('settings'); location.reload(); };
 
-  // 初始化
   (async () => {
     await openDB();
-    if (!(await dbGet('settings', 'incomeCat'))) await saveIncomeCat(DEFAULT.incomeCat);
-    if (!(await dbGet('settings', 'expenseCat'))) await saveExpenseCat(DEFAULT.expenseCat);
-    if (!(await dbGet('settings', 'accounts'))) await saveAccounts(DEFAULT.accounts);
-    if (!(await dbGet('settings', 'rates'))) await saveRates(DEFAULT.rates);
-
+    if(!(await dbGet('settings','incomeCat'))) await saveIncomeCat(DEFAULT.incomeCat);
+    if(!(await dbGet('settings','expenseCat'))) await saveExpenseCat(DEFAULT.expenseCat);
+    if(!(await dbGet('settings','accounts'))) await saveAccounts(DEFAULT.accounts);
+    if(!(await dbGet('settings','rates'))) await saveRates(DEFAULT.rates);
     document.getElementById('headerDate').textContent = new Date().toLocaleDateString('zh-CN',{weekday:'short',month:'short',day:'numeric'});
     document.getElementById('statDateFrom').value = getMonthRange().from;
     document.getElementById('statDateTo').value = getMonthRange().to;
-
     await refreshDashboard();
     await refreshTxForm();
     await refreshTxList();
     await refreshStats();
     await refreshSettings();
-  })().catch(err => alert('初始化失败：' + err.message));
+  })().catch(err => alert('初始化失败：'+err.message));
 })();
 </script>
 </body>
